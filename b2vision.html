@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADM | B2 STREET & B2 Vision</title>
+    <style>
+        /* Estilização Premium e Futurista (Cara de IA) */
+        :root {
+            --bg-dark: #030303;
+            --surface-dark: rgba(10, 10, 10, 0.85);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --text-main: #ffffff;
+            --silver-dark: #888888;
+            --accent-green: #00ff66;
+            --chat-user-bg: #141414;
+            --chat-ia-bg: rgba(5, 5, 5, 0.6);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            /* Fundo estilo IA com efeito de grade e gradiente orbital */
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(20, 20, 25, 0.8), rgba(0, 0, 0, 1)),
+                linear-gradient(rgba(255, 255, 255, 0.007) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.007) 1px, transparent 1px);
+            background-size: 100% 100%, 25px 25px, 25px 25px;
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Container do Chat Box com efeito de vidro (Glassmorphism) */
+        .chat-container {
+            width: 100%;
+            max-width: 1100px;
+            height: 90vh;
+            background: var(--surface-dark);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Cabeçalho do Chat */
+        .chat-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .brand-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            height: 32px;
+            width: auto;
+        }
+
+        .brand-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        /* Container do Status com a Bolinha Verde Pulsante */
+        .status-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--accent-green);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent-green);
+            animation: pulse-green 2s infinite;
+        }
+
+        .status-badge {
+            font-size: 0.75rem;
+            color: #ccc;
+            font-weight: 500;
+        }
+
+        @keyframes pulse-green {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 102, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(0, 255, 102, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 102, 0); }
+        }
+
+        /* Chaves de Modo (Geral vs Empreendedor) */
+        .mode-selector {
+            display: flex;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 4px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .mode-btn {
+            background: transparent;
+            border: none;
+            color: var(--silver-dark);
+            padding: 6px 14px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .mode-btn.active {
+            background: #ffffff;
+            color: #000;
+            font-weight: 600;
+        }
+
+        /* Área de Mensagens */
+        .chat-messages {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            scroll-behavior: smooth;
+        }
+
+        /* Estrutura das Mensagens */
+        .message-group {
+            display: flex;
+            gap: 14px;
+            max-width: 85%;
+            align-items: flex-start;
+        }
+
+        .message-group.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message-group.ia {
+            align-self: flex-start;
+        }
+
+        .avatar-ia {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            object-fit: cover;
+        }
+
+        .avatar-user {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            fill: #000;
+        }
+
+        .message {
+            padding: 14px 18px;
+            border-radius: 14px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .message.user {
+            background: var(--chat-user-bg);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-top-right-radius: 2px;
+        }
+
+        .message.ia {
+            background: var(--chat-ia-bg);
+            color: #e0e0e0;
+            border: 1px solid var(--border-color);
+            border-top-left-radius: 2px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .message strong {
+            color: #fff;
+        }
+
+        /* Barra de Input */
+        .chat-input-area {
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .chat-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 14px 16px;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .chat-input:focus {
+            border-color: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .send-btn {
+            background: #ffffff;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            padding: 0 20px;
+            height: 48px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.2s;
+        }
+
+        .send-btn:hover {
+            opacity: 0.9;
+        }
+
+        /* Indicador de Digitação (Animação de carregamento) */
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 4px 0;
+        }
+
+        .typing-indicator span {
+            width: 6px;
+            height: 6px;
+            background: var(--silver-dark);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="chat-container">
+        <!-- Header -->
+        <div class="chat-header">
+            <div class="brand-section">
+                <img src="logo1.png" class="brand-logo" alt="B2 STREET">
+                <span class="brand-title">B2 Vision</span>
+                <div class="status-container">
+                    <div class="status-dot"></div>
+                    <span class="status-badge" id="statusText">Modo Empreendedor</span>
+                </div>
+            </div>
+            
+            <div class="mode-selector">
+                <button class="mode-btn" id="btnGeral" onclick="changeMode('geral')">Gemini Padrão</button>
+                <button class="mode-btn active" id="btnBusiness" onclick="changeMode('business')">Empreendedor</button>
+            </div>
+        </div>
+
+        <!-- Tela de Conversa -->
+        <div class="chat-messages" id="chatMessages">
+            <div class="message-group ia">
+                <img src="logo1.png" class="avatar-ia" alt="B2 Vision">
+                <div class="message ia">
+                    Salve, chefe. <strong>B2 Vision</strong> conectada no Modo Empreendedor.<br><br>Pronto para analisar os dados de tráfego, remarketing ou otimização da B2 STREET. O que vamos estruturar hoje?
+                </div>
+            </div>
+        </div>
+
+        <!-- Inputs de Envio -->
+        <div class="chat-input-area">
+            <div class="input-wrapper">
+                <input type="text" id="userInput" class="chat-input" placeholder="Pergunte sobre tráfego, remarketing ou digite 'analisar meus pedidos'..." onkeypress="handleKeyPress(event)">
+            </div>
+            <button class="send-btn" onclick="sendMessage()">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- MÓDULOS DE INTEGRAÇÃO (FIREBASE + GEMINI) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { GoogleGenAI } from "https://esm.run/@google/genai";
+
+        // Configurações do Firebase - B2 STREET
+        const firebaseConfig = {
+            apiKey: "AIzaSyD1Phuyxe5du5aMPG3rn4BxAiKdYp0uFuI",
+            authDomain: "b2-street-501f4.firebaseapp.com",
+            databaseURL: "https://b2-street-501f4-default-rtdb.firebaseio.com",
+            projectId: "b2-street-501f4",
+            storageBucket: "b2-street-501f4.firebasestorage.app",
+            messagingSenderId: "975888104452",
+            appId: "1:975888104452:web:1d02d83e0155c67a3fc951"
+        };
+
+        // Inicialização do Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Chave do Gemini SDK
+        const GEMINI_API_KEY = "AQ.Ab8RN6JCZn89INDk1g1YiLTYICA75OxJo8RlOVVRPItOCNaEUg"; 
+        const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+        
+        let currentMode = 'business';
+
+        const instructions = {
+            business: "Você é o 'B2 Vision', um assistente focado estritamente em marketing, tráfego pago, remarketing e dados da loja B2 STREET. Sua linguagem é profissional, limpa e focada em conversão, usando gírias leves do mundo do streetwear de luxo se necessário. Você receberá relatórios estruturados de todos os pedidos vindos do Firebase Realtime Database. Use esses dados para dar insights de vendas precisos, contagens corretas de status e estratégias de remarketing para o dono.",
+            geral: "Você é uma inteligência artificial assistente completa e sem restrições de nicho, agindo como o Gemini tradicional. Você está aqui para ajudar o usuário em qualquer pergunta, tarefa, criação de código, curiosidades ou bate-papo geral que ele precisar."
+        };
+
+        // Buscar todos os pedidos do Realtime Database - Atualizado para o nó correto
+        async function buscarDadosPedidos() {
+            try {
+                // CORREÇÃO: Apontando para o nó correto apontado na raiz do banco
+                const pedidosRef = ref(db, 'todos_pedidos'); 
+                const snapshot = await get(pedidosRef);
+                
+                if (snapshot.exists()) {
+                    const dadosBrutos = snapshot.val();
+                    console.log("DADOS BRUTOS EXTRAÍDOS DE TODOS_PEDIDOS:", dadosBrutos);
+                    
+                    let listaPedidos = [];
+
+                    Object.keys(dadosBrutos).forEach(id => {
+                        if (!id || id === 'undefined' || dadosBrutos[id] == null) return;
+
+                        const p = dadosBrutos[id];
+                        
+                        // Tratamento flexível para capturar o valor total em diferentes formatos
+                        let totalDetectado = p.valorTotal || p.total || p.precoTotal || p.price || p.valor || p.totalPrice || 0;
+                        if (typeof totalDetectado === 'string') {
+                            totalDetectado = parseFloat(totalDetectado.replace(/[^\d.,]/g, '').replace(',', '.'));
+                        }
+
+                        let clienteDetectado = p.nome || p.cliente || p.nomeCliente || p.customer || p.username || p.comprador || "Não informado";
+                        let statusDetectado = p.status || p.situacao || p.state || "Pendente";
+
+                        listaPedidos.push({
+                            id_pedido: id,
+                            cliente: clienteDetectado,
+                            itens: p.produtos || p.itens || p.items || p.carrinho || [],
+                            total: totalDetectado,
+                            status: statusDetectado.toString().trim()
+                        });
+                    });
+
+                    return listaPedidos;
+                } else {
+                    console.log("Nenhum dado encontrado no nó /todos_pedidos. Verifique a estrutura.");
+                    return null;
+                }
+            } catch (error) {
+                console.error("Erro crítico ao ler Realtime Database:", error);
+                return null;
+            }
+        }
+
+        // Alternância de Modos da IA
+        window.changeMode = function(mode) {
+            if (currentMode === mode) return;
+            currentMode = mode;
+            
+            const btnGeral = document.getElementById('btnGeral');
+            const btnBusiness = document.getElementById('btnBusiness');
+            const statusText = document.getElementById('statusText');
+            
+            if (mode === 'geral') {
+                btnGeral.classList.add('active');
+                btnBusiness.classList.remove('active');
+                statusText.innerText = "IA Padrão Ativa";
+                appendSystemAlert("Modo alterado para: IA Padrão.");
+            } else {
+                btnBusiness.classList.add('active');
+                btnGeral.classList.remove('active');
+                statusText.innerText = "Modo Empreendedor";
+                appendSystemAlert("Modo alterado para: Empreendedor (B2 Vision).");
+            }
+        }
+
+        // Envio de Mensagens e Integração de Contexto
+        window.sendMessage = async function() {
+            const inputElement = document.getElementById('userInput');
+            const messageText = inputElement.value.trim();
+            if (!messageText) return;
+
+            appendMessageGroup(messageText, 'user');
+            inputElement.value = '';
+
+            const loadingId = appendTypingIndicator();
+
+            try {
+                let contextoAdicional = "";
+
+                if (currentMode === 'business' && 
+                    (messageText.toLowerCase().includes('pedido') || 
+                     messageText.toLowerCase().includes('venda') || 
+                     messageText.toLowerCase().includes('cliente') ||
+                     messageText.toLowerCase().includes('entregue') ||
+                     messageText.toLowerCase().includes('faturamento') ||
+                     messageText.toLowerCase().includes('loja'))) {
+                    
+                    appendSystemAlert("B2 Vision consultando Realtime Database...");
+                    const dadosBanco = await buscarDadosPedidos();
+                    
+                    if (dadosBanco && dadosBanco.length > 0) {
+                        contextoAdicional = `\n[CONTEXTO ATUALIZADO DO FIREBASE - LEITURA COMPLETA]: Aqui estão TODOS os pedidos atualmente gravados no nó 'todos_pedidos' do banco de dados da loja B2 STREET: ${JSON.stringify(dadosBanco)}. Calcule os totais, separe por status (como 'entregue', 'Pendente', etc.) de forma exata de acordo com essa lista.\n`;
+                    } else {
+                        contextoAdicional = `\n[CONTEXTO ATUALIZADO]: Nenhum histórico de pedidos foi localizado no banco.\n`;
+                    }
+                }
+
+                // Chamada oficial do Gemini SDK
+                const response = await ai.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: contextoAdicional + messageText,
+                    config: { systemInstruction: instructions[currentMode] }
+                });
+
+                removeTypingIndicator(loadingId);
+                appendMessageGroup(response.text, 'ia');
+
+            } catch (error) {
+                console.error("Erro na API:", error);
+                removeTypingIndicator(loadingId);
+                
+                if(error.toString().includes("401") || error.toString().includes("authentication")) {
+                    appendMessageGroup("<strong>Erro 401: Chave de API inválida ou revogada.</strong> Acesse o Google AI Studio, gere uma nova credencial e atualize a variável GEMINI_API_KEY no seu código.", 'ia');
+                } else if(error.toString().includes("429")) {
+                    appendMessageGroup("<strong>Limite diário atingido (Erro 429).</strong> Aguarde o reset da cota da sua chave atual.", 'ia');
+                } else {
+                    appendMessageGroup("Erro de comunicação com os módulos da B2 Vision. Detalhes salvos no console (F12).", 'ia');
+                }
+            }
+        }
+
+        window.handleKeyPress = function(event) {
+            if (event.key === 'Enter') { sendMessage(); }
+        }
+
+        function appendMessageGroup(text, sender) {
+            const chatMessages = document.getElementById('chatMessages');
+            const groupDiv = document.createElement('div');
+            groupDiv.className = `message-group ${sender}`;
+
+            const userAvatarSvg = `
+                <div class="avatar-user">
+                    <svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                </div>`;
+            
+            const iaAvatarHtml = `<img src="logo1.png" class="avatar-ia" alt="B2 Vision">`;
+            
+            let formattedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            formattedText = formattedText.replace(/\n/g, '<br>');
+            
+            const messageHtml = `<div class="message ${sender}">${formattedText}</div>`;
+            
+            if (sender === 'ia') {
+                groupDiv.innerHTML = iaAvatarHtml + messageHtml;
+            } else {
+                groupDiv.innerHTML = userAvatarSvg + messageHtml;
+            }
+            
+            chatMessages.appendChild(groupDiv);
+            scrollToBottom();
+        }
+
+        function appendTypingIndicator() {
+            const chatMessages = document.getElementById('chatMessages');
+            const id = 'typing-' + Date.now();
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'message-group ia';
+            groupDiv.id = id;
+
+            groupDiv.innerHTML = `
+                <img src="logo1.png" class="avatar-ia" alt="B2 Vision">
+                <div class="message ia">
+                    <div class="typing-indicator"><span></span><span></span><span></span></div>
+                </div>
+            `;
+            
+            chatMessages.appendChild(groupDiv);
+            scrollToBottom();
+            return id;
+        }
+
+        function appendSystemAlert(text) {
+            const chatMessages = document.getElementById('chatMessages');
+            const alertDiv = document.createElement('div');
+            alertDiv.style.cssText = "align-self: center; font-size: 0.72rem; color: #666; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border-color); margin: 4px 0; font-family: monospace; letter-spacing: 0.5px;";
+            alertDiv.innerText = text;
+            chatMessages.appendChild(alertDiv);
+            scrollToBottom();
+        }
+
+        function removeTypingIndicator(id) {
+            const indicator = document.getElementById(id);
+            if (indicator) indicator.remove();
+        }
+
+        function scrollToBottom() {
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    </script>
+</body>
+</html>
