@@ -280,7 +280,6 @@
             width: 100%;
         }
 
-        /* AJUSTE: Removida a rodinha envolta (border-radius) do avatar da IA */
         .avatar-ia {
             width: 60px;
             height: 60px;
@@ -454,7 +453,7 @@
             .chat-messages { padding: 30px 120px; }
             .message-group.user { max-width: 70%; }
             .scroll-bottom-btn { bottom: 100px; right: 40px; }
-            .menu-toggle-btn { display: none; } /* Oculta ícone hamburguer no PC */
+            .menu-toggle-btn { display: none; }
         }
     </style>
 </head>
@@ -465,10 +464,12 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             Nova conversa
         </button>
-        <div class="recent-section">
+        <button class="new-chat-btn" onclick="configurarChaves()" style="margin-top: -10px; background: rgba(255,0,0,0.1);">
+            ⚙️ Configurar APIs
+        </button>
+        <div class="recent-section" style="margin-top: 10px;">
             <span class="recent-title">Recentes</span>
-            <ul class="recent-list" id="recentList">
-                </ul>
+            <ul class="recent-list" id="recentList"></ul>
         </div>
     </div>
 
@@ -536,6 +537,53 @@
         let activeChatId = Date.now().toString();
         let conversasSalvas = JSON.parse(localStorage.getItem('b2_history')) || {};
 
+        // Configuração de segurança para chaves dinâmicas
+        window.configurarChaves = function() {
+            const fbKey = prompt("Cole sua Firebase API Key (mantenha em branco para manter a atual):");
+            const geminiKey = prompt("Cole sua nova GEMINI API Key (mantenha em branco para manter a atual):");
+            
+            if(fbKey) localStorage.setItem('b2_fb_key', fbKey);
+            if(geminiKey) localStorage.setItem('b2_gemini_key', geminiKey);
+            
+            if(fbKey || geminiKey) {
+                alert("Chaves salvas localmente com sucesso! Recarregando a página...");
+                window.location.reload();
+            }
+        }
+
+        // Lógica de recuperação de chaves protegidas do localStorage
+        const salvouFB = localStorage.getItem('b2_fb_key');
+        const salvouGemini = localStorage.getItem('b2_gemini_key');
+
+        if(!salvouFB || !salvouGemini) {
+            setTimeout(() => {
+                appendSystemAlert("⚠️ Configuração pendente: Clique em 'Configurar APIs' no menu lateral para inserir suas chaves sem quebrar no GitHub.");
+            }, 3000);
+        }
+
+        // Configurações padrão limpas para o GitHub
+        const firebaseConfig = {
+            apiKey: salvouFB || "COLOQUE_SUA_KEY_AQUI_OU_USE_O_BOTAO_CONFIGURAR", 
+            authDomain: "b2-street-501f4.firebaseapp.com",
+            databaseURL: "https://b2-street-501f4-default-rtdb.firebaseio.com",
+            projectId: "b2-street-501f4",
+            storageBucket: "b2-street-501f4.firebasestorage.app",
+            messagingSenderId: "975888104452",
+            appId: "1:975888104452:web:1d02d83e0155c67a3fc951"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        const ai = new GoogleGenAI({ apiKey: salvouGemini || "COLOQUE_SUA_KEY_AQUI" });
+        
+        let currentMode = 'business';
+
+        const instructions = {
+            business: "Você é o 'B2 Vision', um assistente focado estritamente em marketing, tráfego pago, remarketing e dados da loja B2 STREET. Sua linguagem é profissional, limpa e focada em conversão, usando gírias leves do mundo do streetwear de luxo se necessário. Você receberá relatórios estruturados de todos os pedidos vindos do Firebase Realtime Database. Use esses dados para dar insights de vendas precisos, contagens corretas de status e estratégias de remarketing para o dono.",
+            geral: "Você é uma inteligência artificial assistente completa e sem restrições de nicho, agindo como o Gemini tradicional. Você está aqui para ajudar o usuário em qualquer pergunta, tarefa, criação de código, curiosidades ou bate-papo geral que ele precisar."
+        };
+
         // Lógica da Splash Screen
         window.addEventListener('DOMContentLoaded', () => {
             renderRecentChats();
@@ -548,12 +596,10 @@
             }, 2500);
         });
 
-        // Alternar Menu Lateral (Mobile)
         window.toggleSidebar = function() {
             sidebar.classList.toggle('open');
         }
 
-        // Nova Conversa
         window.startNewChat = function() {
             activeChatId = Date.now().toString();
             chatMessages.innerHTML = `
@@ -568,7 +614,6 @@
             if (window.innerWidth < 768) toggleSidebar();
         }
 
-        // Salvar Histórico Localmente
         function salvarMensagemNoHistorico(text, sender) {
             if (!conversasSalvas[activeChatId]) {
                 conversasSalvas[activeChatId] = {
@@ -581,7 +626,6 @@
             renderRecentChats();
         }
 
-        // Renderizar Lista Recentes
         function renderRecentChats() {
             recentList.innerHTML = "";
             Object.keys(conversasSalvas).sort((a,b) => b - a).forEach(id => {
@@ -593,7 +637,6 @@
             });
         }
 
-        // Carregar Conversa Antiga
         function carregarConversa(id) {
             activeChatId = id;
             chatMessages.innerHTML = "";
@@ -604,7 +647,6 @@
             if (window.innerWidth < 768) toggleSidebar();
         }
 
-        // Monitora o scroll
         chatMessages.addEventListener('scroll', () => {
             const totalScrollavel = chatMessages.scrollHeight - chatMessages.clientHeight;
             if (totalScrollavel - chatMessages.scrollTop > 150) {
@@ -628,29 +670,6 @@
                 }
             }, 60);
         }
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyD1Phuyxe5du5aMPG3rn4BxAiKdYp0uFuI",
-            authDomain: "b2-street-501f4.firebaseapp.com",
-            databaseURL: "https://b2-street-501f4-default-rtdb.firebaseio.com",
-            projectId: "b2-street-501f4",
-            storageBucket: "b2-street-501f4.firebasestorage.app",
-            messagingSenderId: "975888104452",
-            appId: "1:975888104452:web:1d02d83e0155c67a3fc951"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-
-        const GEMINI_API_KEY = "AQ.Ab8RN6LBltj-UUmhos87vZv_WPoY-LSjBNjM6DryevlhcoRSQg"; 
-        const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-        
-        let currentMode = 'business';
-
-        const instructions = {
-            business: "Você é o 'B2 Vision', um assistente focado estritamente em marketing, tráfego pago, remarketing e dados da loja B2 STREET. Sua linguagem é profissional, limpa e focada em conversão, usando gírias leves do mundo do streetwear de luxo se necessário. Você receberá relatórios estruturados de todos os pedidos vindos do Firebase Realtime Database. Use esses dados para dar insights de vendas precisos, contagens corretas de status e estratégias de remarketing para o dono.",
-            geral: "Você é uma inteligência artificial assistente completa e sem restrições de nicho, agindo como o Gemini tradicional. Você está aqui para ajudar o usuário em qualquer pergunta, tarefa, criação de código, curiosidades ou bate-papo geral que ele precisar."
-        };
 
         async function buscarDadosPedidos() {
             try {
@@ -754,7 +773,7 @@
             } catch (error) {
                 console.error("Erro na API:", error);
                 removeTypingIndicator(loadingId);
-                appendMessageGroup("Erro de comunicação com o servidor. Tente novamente.", 'ia');
+                appendMessageGroup("Erro de comunicação com o servidor. Verifique se configurou as chaves de API corretamente no menu lateral.", 'ia');
             }
         }
 
@@ -806,7 +825,7 @@
 
         function appendSystemAlert(text) {
             const alertDiv = document.createElement('div');
-            alertDiv.style.cssText = "align-self: center; font-size: 0.72rem; color: #555; background: rgba(255,255,255,0.02); padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border-color); margin: 4px 0; font-family: monospace;";
+            alertDiv.style.cssText = "align-self: center; font-size: 0.72rem; color: #888; background: rgba(255,255,255,0.02); padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border-color); margin: 4px 0; font-family: monospace;";
             alertDiv.innerText = text;
             chatMessages.appendChild(alertDiv);
             scrollToBottom();
