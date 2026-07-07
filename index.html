@@ -494,7 +494,7 @@
                     </div>
                 </div>
             </div>
-            
+             
             <div class="mode-selector">
                 <button class="mode-btn" id="btnGeral" onclick="changeMode('geral')">Gemini Padrão</button>
                 <button class="mode-btn active" id="btnBusiness" onclick="changeMode('business')">Empreendedor</button>
@@ -505,7 +505,7 @@
             <div class="message-group ia">
                 <img src="E179298F-8DDC-4731-BCEA-29993AC66FDD.png" class="avatar-ia" alt="B2 Vision">
                 <div class="message ia">
-                    Salve, chefe. <strong>B2 Vision</strong> conectada no Modo Empreendedor.<br><br>Pronto para analisar os dados de tráfego, remarketing ou otimização da B2 STREET. O que vamos estruturar hoje?
+                    Salve, chefe. <strong>B2 Vision</strong> conectada no Modo Empreendedor.<br><br>Pronto para analisar dados de tráfego, gerenciar produtos, pedidos, criar cupons (em R$) ou organizar suas anotações estratégicas. O que vamos estruturar hoje?
                 </div>
             </div>
         </div>
@@ -516,7 +516,7 @@
 
         <div class="chat-input-area">
             <div class="input-wrapper">
-                <input type="text" id="userInput" class="chat-input" placeholder="Pergunte sobre tráfego ou digite algo..." onkeypress="handleKeyPress(event)">
+                <input type="text" id="userInput" class="chat-input" placeholder="Mude o preço de um produto ou faça uma anotação livre..." onkeypress="handleKeyPress(event)">
                 <button class="send-btn" onclick="sendMessage()">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                 </button>
@@ -526,44 +526,31 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, get, update, remove, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
         import { GoogleGenAI } from "https://esm.run/@google/genai";
 
         const chatMessages = document.getElementById('chatMessages');
         const scrollBtn = document.getElementById('scrollBtn');
         const sidebar = document.getElementById('sidebar');
         const recentList = document.getElementById('recentList');
-        
+         
         let activeChatId = Date.now().toString();
         let conversasSalvas = JSON.parse(localStorage.getItem('b2_history')) || {};
+        let currentChatSession = null;
 
-        // Configuração de segurança para chaves dinâmicas
         window.configurarChaves = function() {
-            const fbKey = prompt("Cole sua Firebase API Key (mantenha em branco para manter a atual):");
-            const geminiKey = prompt("Cole sua nova GEMINI API Key (mantenha em branco para manter a atual):");
-            
+            const fbKey = prompt("Cole sua Firebase API Key:");
+            const geminiKey = prompt("Cole sua nova GEMINI API Key:");
             if(fbKey) localStorage.setItem('b2_fb_key', fbKey);
             if(geminiKey) localStorage.setItem('b2_gemini_key', geminiKey);
-            
-            if(fbKey || geminiKey) {
-                alert("Chaves salvas localmente com sucesso! Recarregando a página...");
-                window.location.reload();
-            }
+            if(fbKey || geminiKey) window.location.reload();
         }
 
-        // Lógica de recuperação de chaves protegidas do localStorage
         const salvouFB = localStorage.getItem('b2_fb_key');
         const salvouGemini = localStorage.getItem('b2_gemini_key');
 
-        if(!salvouFB || !salvouGemini) {
-            setTimeout(() => {
-                appendSystemAlert("⚠️ Configuração pendente: Clique em 'Configurar APIs' no menu lateral para inserir suas chaves sem quebrar no GitHub.");
-            }, 3000);
-        }
-
-        // Configurações padrão limpas para o GitHub
         const firebaseConfig = {
-            apiKey: salvouFB || "COLOQUE_SUA_KEY_AQUI_OU_USE_O_BOTAO_CONFIGURAR", 
+            apiKey: salvouFB || "COLOQUE_SUA_KEY_AQUI", 
             authDomain: "b2-street-501f4.firebaseapp.com",
             databaseURL: "https://b2-street-501f4-default-rtdb.firebaseio.com",
             projectId: "b2-street-501f4",
@@ -574,19 +561,193 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-
         const ai = new GoogleGenAI({ apiKey: salvouGemini || "COLOQUE_SUA_KEY_AQUI" });
-        
+         
         let currentMode = 'business';
 
         const instructions = {
-            business: "Você é o 'B2 Vision', um assistente focado estritamente em marketing, tráfego pago, remarketing e dados da loja B2 STREET. Sua linguagem é profissional, limpa e focada em conversão, usando gírias leves do mundo do streetwear de luxo se necessário. Você receberá relatórios estruturados de todos os pedidos vindos do Firebase Realtime Database. Use esses dados para dar insights de vendas precisos, contagens corretas de status e estratégias de remarketing para o dono.",
-            geral: "Você é uma inteligência artificial assistente completa e sem restrições de nicho, agindo como o Gemini tradicional. Você está aqui para ajudar o usuário em qualquer pergunta, tarefa, criação de código, curiosidades ou bate-papo geral que ele precisar."
+            business: "Você é o 'B2 Vision', um assistente focado em marketing, tráfego pago e gestão da loja B2 STREET. Você é focado e compreende o mercado streetwear. Você tem ferramentas integradas para ler/mudar pedidos, produtos, criar cupons de desconto fixo em Reais (R$) e salvar ou ler anotações administrativas de controle interno.",
+            geral: "Você é uma inteligência artificial assistente completa e sem restrições de nicho, agindo como o Gemini tradicional."
         };
 
-        // Lógica da Splash Screen
+        // --- SISTEMA DE TOOLS DO FIREBASE ---
+        
+        async function buscarDadosPedidos() {
+            try {
+                appendSystemAlert("⚡ Lendo pedidos do Firebase...");
+                const snapshot = await get(ref(db, 'todos_pedidos'));
+                if (snapshot.exists()) {
+                    let lista = [];
+                    Object.keys(snapshot.val()).forEach(id => {
+                        if (!id || id === 'undefined') return;
+                        const p = snapshot.val()[id];
+                        lista.push({ id_pedido: id, cliente: p.nome || p.cliente || "Não informado", itens: p.produtos || p.itens || [], total: p.valorTotal || p.total || 0, status: p.status || "Pendente" });
+                    });
+                    return { pedidos: lista };
+                }
+                return { resultado: "Nenhum pedido encontrado." };
+            } catch (e) { return { erro: e.message }; }
+        }
+
+        async function atualizarStatusPedido(args) {
+            try {
+                appendSystemAlert(`⚡ Atualizando status do pedido ${args.id_pedido}...`);
+                await update(ref(db, `todos_pedidos/${args.id_pedido}`), { status: args.novo_status });
+                return { resultado: `Sucesso! Pedido ${args.id_pedido} alterado para '${args.novo_status}'.` };
+            } catch (e) { return { erro: e.message }; }
+        }
+
+        async function excluirPedido(args) {
+            try {
+                appendSystemAlert(`⚡ Deletando pedido ${args.id_pedido}...`);
+                await remove(ref(db, `todos_pedidos/${args.id_pedido}`));
+                return { resultado: `Sucesso! Pedido ${args.id_pedido} apagado.` };
+            } catch (e) { return { erro: e.message }; }
+        }
+
+        async function buscarProdutos() {
+            try {
+                appendSystemAlert("⚡ Lendo catálogo de produtos...");
+                const snapshot = await get(ref(db, 'produtos'));
+                return snapshot.exists() ? { produtos: snapshot.val() } : { resultado: "Sem produtos." };
+            } catch (e) { return { erro: e.message }; }
+        }
+
+        async function editarProduto(args) {
+            try {
+                appendSystemAlert(`⚡ Atualizando informações do produto ${args.id_produto}...`);
+                const up = {};
+                if (args.nome) up.nome = args.nome;
+                if (args.preco) up.preco = parseFloat(args.preco);
+                if (args.tag) up.tag = args.tag;
+                await update(ref(db, `produtos/${args.id_produto}`), up);
+                return { resultado: `Sucesso! Produto ${args.id_produto} atualizado.` };
+            } catch (e) { return { erro: e.message }; }
+        }
+
+        async function excluirProduto(args) {
+            try {
+                appendSystemAlert(`⚡ Removendo produto ${args.id_produto}...`);
+                await remove(ref(db, `produtos/${args.id_produto}`));
+                return { resultado: `Sucesso! Produto ${args.id_produto} deletado.` };
+            } catch (e) { return { erro: e.message }; }
+        }
+
+        async function criarCupom(args) {
+            try {
+                appendSystemAlert(`⚡ Registrando cupom: ${args.codigo}...`);
+                const novoCupom = {
+                    codigo: args.codigo.toUpperCase(),
+                    desconto_reais: parseFloat(args.desconto_reais),
+                    tipo: "reais_fixo"
+                };
+                await set(ref(db, `cupons/${novoCupom.codigo}`), novoCupom);
+                return { resultado: `Sucesso! Cupom ${novoCupom.codigo} de R$ ${novoCupom.desconto_reais} cadastrado com sucesso.` };
+            } catch (e) { return { erro: e.message }; }
+        }
+
+        // --- NOVAS FERRAMENTAS PARA ANOTAÇÕES MANUAIS ---
+        async function salvarAnotacao(args) {
+            try {
+                appendSystemAlert(`⚡ Gravando anotação no Firebase...`);
+                const idAnotacao = args.id_anotacao || 'nota_' + Date.now();
+                const novaNota = {
+                    id: idAnotacao,
+                    conteudo: args.conteudo,
+                    data_atualizacao: new Date().toLocaleString('pt-BR')
+                };
+                await set(ref(db, `anotacoes_adm/${idAnotacao}`), novaNota);
+                return { resultado: `Anotação cadastrada/alterada com sucesso! ID de controle: ${idAnotacao}` };
+            } catch (e) { return { erro: e.message }; }
+        }
+
+        async function lerAnotacoes() {
+            try {
+                appendSystemAlert("⚡ Buscando anotações internas...");
+                const snapshot = await get(ref(db, 'anotacoes_adm'));
+                return snapshot.exists() ? { anotacoes: snapshot.val() } : { resultado: "Nenhuma anotação manual encontrada no sistema." };
+            } catch (e) { return { erro: e.message }; }
+        }
+
+        const mapaFerramentas = {
+            buscarDadosPedidos, atualizarStatusPedido, excluirPedido,
+            buscarProdutos, editarProduto, excluirProduto, criarCupom,
+            salvarAnotacao, lerAnotacoes
+        };
+
+        const declaracaoFerramentas = [{
+            functionDeclarations: [
+                { name: "buscarDadosPedidos", description: "Busca todos os pedidos." },
+                {
+                    name: "atualizarStatusPedido",
+                    description: "Modifica o status de um pedido.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: { id_pedido: { type: "STRING" }, novo_status: { type: "STRING" } },
+                        required: ["id_pedido", "novo_status"]
+                    }
+                },
+                {
+                    name: "excluirPedido",
+                    description: "Remove um pedido permanentemente.",
+                    parameters: { type: "OBJECT", properties: { id_pedido: { type: "STRING" } }, required: ["id_pedido"] }
+                },
+                { name: "buscarProdutos", description: "Busca todo o catálogo de produtos." },
+                {
+                    name: "editarProduto",
+                    description: "Edita nome, preço ou tag de um produto no banco.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: { id_produto: { type: "STRING" }, nome: { type: "STRING" }, preco: { type: "NUMBER" }, tag: { type: "STRING" } },
+                        required: ["id_produto"]
+                    }
+                },
+                {
+                    name: "excluirProduto",
+                    description: "Remove um produto da loja.",
+                    parameters: { type: "OBJECT", properties: { id_produto: { type: "STRING" } }, required: ["id_produto"] }
+                },
+                {
+                    name: "criarCupom",
+                    description: "Cria um cupom aplicando um desconto fixo em Reais (R$).",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            codigo: { type: "STRING", description: "Código do cupom (Ex: PROMO50)" },
+                            desconto_reais: { type: "NUMBER", description: "Valor do desconto bruto em reais (Ex: 50.00)" }
+                        },
+                        required: ["codigo", "desconto_reais"]
+                    }
+                },
+                {
+                    name: "salvarAnotacao",
+                    description: "Grava ou altera notas estratégicas livres do administrador no banco de dados.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            conteudo: { type: "STRING", description: "O texto ou informação a ser guardada." },
+                            id_anotacao: { type: "STRING", description: "Opcional. Use um ID existente caso queira atualizar ou sobrescrever uma nota antiga." }
+                        },
+                        required: ["conteudo"]
+                    }
+                },
+                { name: "lerAnotacoes", description: "Busca todas as anotações feitas manualmente pelo administrador no sistema." }
+            ]
+        }];
+
+        function iniciarSessaoChatAI() {
+            const configGeracao = { systemInstruction: instructions[currentMode] };
+            if (currentMode === 'business') configGeracao.tools = declaracaoFerramentas;
+            
+            currentChatSession = ai.chats.create({
+                model: 'gemini-2.5-flash',
+                config: configGeracao
+            });
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             renderRecentChats();
+            iniciarSessaoChatAI();
             setTimeout(() => {
                 const splash = document.getElementById('splashScreen');
                 if (splash) {
@@ -596,9 +757,7 @@
             }, 2500);
         });
 
-        window.toggleSidebar = function() {
-            sidebar.classList.toggle('open');
-        }
+        window.toggleSidebar = function() { sidebar.classList.toggle('open'); }
 
         window.startNewChat = function() {
             activeChatId = Date.now().toString();
@@ -606,20 +765,21 @@
                 <div class="message-group ia">
                     <img src="E179298F-8DDC-4731-BCEA-29993AC66FDD.png" class="avatar-ia" alt="B2 Vision">
                     <div class="message ia">
-                        Salve, chefe. <strong>B2 Vision</strong> conectada no Modo Empreendedor.<br><br>Pronto para analisar os dados de tráfego, remarketing ou otimização da B2 STREET. O que vamos estruturar hoje?
+                        Salve, chefe. <strong>B2 Vision</strong> conectada no Modo Empreendedor.<br><br>Pronto para analisar dados de tráfego, gerenciar produtos, pedidos, criar cupons (em R$) ou organizar suas anotações estratégicas. O que vamos estruturar hoje?
                     </div>
                 </div>
             `;
+            iniciarSessaoChatAI();
             renderRecentChats();
             if (window.innerWidth < 768) toggleSidebar();
         }
 
         function salvarMensagemNoHistorico(text, sender) {
             if (!conversasSalvas[activeChatId]) {
-                conversasSalvas[activeChatId] = {
-                    titulo: text.substring(0, 24) + (text.length > 24 ? "..." : ""),
-                    mensagens: []
-                };
+                conversasSalvas[activeChatId] = { titulo: text.substring(0, 24) + "...", mensagens: [] };
+            }
+            if (!conversasSalvas[activeChatId].mensagens) {
+                conversasSalvas[activeChatId].mensagens = conversasSalvas[activeChatId].mengagens || [];
             }
             conversasSalvas[activeChatId].mensagens.push({ text, sender });
             localStorage.setItem('b2_history', JSON.stringify(conversasSalvas));
@@ -640,94 +800,36 @@
         function carregarConversa(id) {
             activeChatId = id;
             chatMessages.innerHTML = "";
-            conversasSalvas[id].mensagens.forEach(msg => {
+            iniciarSessaoChatAI();
+            
+            const msgs = conversasSalvas[id].mensagens || conversasSalvas[id].mengagens || [];
+            const historicoAdaptado = [];
+            
+            msgs.forEach(msg => {
                 appendMessageGroupUI(msg.text, msg.sender);
+                historicoAdaptado.push({ role: msg.sender === 'ia' ? 'model' : 'user', parts: [{ text: msg.text }] });
             });
-            renderRecentChats();
+            
+            if(historicoAdaptado.length > 0) {
+                currentChatSession.history = historicoAdaptado;
+            }
             if (window.innerWidth < 768) toggleSidebar();
         }
 
-        chatMessages.addEventListener('scroll', () => {
-            const totalScrollavel = chatMessages.scrollHeight - chatMessages.clientHeight;
-            if (totalScrollavel - chatMessages.scrollTop > 150) {
-                scrollBtn.classList.add('show');
-            } else {
-                scrollBtn.classList.remove('show');
-            }
-        });
-
-        window.scrollToBottomManual = function() {
-            chatMessages.scrollTo({
-                top: chatMessages.scrollHeight,
-                behavior: 'smooth'
-            });
-        }
+        window.scrollToBottomManual = function() { chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' }); }
 
         function scrollToBottom() {
-            setTimeout(() => {
-                if(chatMessages.lastElementChild) {
-                    chatMessages.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                }
-            }, 60);
-        }
-
-        async function buscarDadosPedidos() {
-            try {
-                const pedidosRef = ref(db, 'todos_pedidos'); 
-                const snapshot = await get(pedidosRef);
-                
-                if (snapshot.exists()) {
-                    const dadosBrutos = snapshot.val();
-                    let listaPedidos = [];
-
-                    Object.keys(dadosBrutos).forEach(id => {
-                        if (!id || id === 'undefined' || dadosBrutos[id] == null) return;
-                        const p = dadosBrutos[id];
-                        
-                        let totalDetectado = p.valorTotal || p.total || p.precoTotal || p.price || p.valor || p.totalPrice || 0;
-                        if (typeof totalDetectado === 'string') {
-                            totalDetectado = parseFloat(totalDetectado.replace(/[^\d.,]/g, '').replace(',', '.'));
-                        }
-
-                        let clienteDetectado = p.nome || p.cliente || p.nomeCliente || p.customer || p.username || p.comprador || "Não informado";
-                        let statusDetectado = p.status || p.situacao || p.state || "Pendente";
-
-                        listaPedidos.push({
-                            id_pedido: id,
-                            cliente: clienteDetectado,
-                            itens: p.produtos || p.itens || p.items || p.carrinho || [],
-                            total: totalDetectado,
-                            status: statusDetectado.toString().trim()
-                        });
-                    });
-                    return listaPedidos;
-                }
-                return null;
-            } catch (error) {
-                console.error("Erro ao ler Realtime Database:", error);
-                return null;
-            }
+            setTimeout(() => { if(chatMessages.lastElementChild) chatMessages.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 60);
         }
 
         window.changeMode = function(mode) {
             if (currentMode === mode) return;
             currentMode = mode;
-            
-            const btnGeral = document.getElementById('btnGeral');
-            const btnBusiness = document.getElementById('btnBusiness');
-            const statusText = document.getElementById('statusText');
-            
-            if (mode === 'geral') {
-                btnGeral.classList.add('active');
-                btnBusiness.classList.remove('active');
-                statusText.innerText = "Gemini Padrão Ativo";
-                appendSystemAlert("Modo alterado para: Gemini Padrão.");
-            } else {
-                btnBusiness.classList.add('active');
-                btnGeral.classList.remove('active');
-                statusText.innerText = "Modo Empreendedor";
-                appendSystemAlert("Modo alterado para: Empreendedor (B2 Vision).");
-            }
+            document.getElementById('btnGeral').classList.toggle('active', mode === 'general');
+            document.getElementById('btnBusiness').classList.toggle('active', mode === 'business');
+            document.getElementById('statusText').innerText = mode === 'geral' ? "Gemini Padrão Ativo" : "Modo Empreendedor";
+            appendSystemAlert(`Modo alterado.`);
+            iniciarSessaoChatAI();
         }
 
         window.sendMessage = async function() {
@@ -741,45 +843,39 @@
             const loadingId = appendTypingIndicator();
 
             try {
-                let contextoAdicional = "";
+                if (!currentChatSession) iniciarSessaoChatAI();
 
-                if (currentMode === 'business' && 
-                    (messageText.toLowerCase().includes('pedido') || 
-                     messageText.toLowerCase().includes('venda') || 
-                     messageText.toLowerCase().includes('cliente') ||
-                     messageText.toLowerCase().includes('entregue') ||
-                     messageText.toLowerCase().includes('faturamento') ||
-                     messageText.toLowerCase().includes('loja'))) {
-                    
-                    appendSystemAlert("B2 Vision consultando Realtime Database...");
-                    const dadosBanco = await buscarDadosPedidos();
-                    
-                    if (dadosBanco && dadosBanco.length > 0) {
-                        contextoAdicional = `\n[CONTEXTO ATUALIZADO DO FIREBASE]: Aqui estão os pedidos da B2 STREET: ${JSON.stringify(dadosBanco)}.\n`;
+                let response = await currentChatSession.sendMessage({ message: messageText });
+
+                while (response.functionCalls && response.functionCalls.length > 0) {
+                    const partesRespostaFerramenta = [];
+
+                    for (const chamada of response.functionCalls) {
+                        const nomeFuncao = chamada.name;
+                        const argumentos = chamada.args;
+
+                        if (mapaFerramentas[nomeFuncao]) {
+                            const resultadoExecucao = await mapaFerramentas[nomeFuncao](argumentos);
+                            partesRespostaFerramenta.push({
+                                functionResponse: { name: nomeFuncao, response: resultadoExecucao }
+                            });
+                        }
                     }
+
+                    response = await currentChatSession.sendMessage({ message: partesRespostaFerramenta });
                 }
 
-                const response = await ai.models.generateContent({
-                    model: 'gemini-2.5-flash',
-                    contents: contextoAdicional + messageText,
-                    config: {
-                        systemInstruction: instructions[currentMode]
-                    }
-                });
-
                 removeTypingIndicator(loadingId);
-                appendMessageGroup(response.text, 'ia');
+                if (response.text) appendMessageGroup(response.text, 'ia');
 
             } catch (error) {
-                console.error("Erro na API:", error);
+                console.error(error);
                 removeTypingIndicator(loadingId);
-                appendMessageGroup("Erro de comunicação com o servidor. Verifique se configurou as chaves de API corretamente no menu lateral.", 'ia');
+                appendMessageGroup("Problema ao processar requisição.", 'ia');
             }
         }
 
-        window.handleKeyPress = function(event) {
-            if (event.key === 'Enter') { sendMessage(); }
-        }
+        window.handleKeyPress = function(event) { if (event.key === 'Enter') sendMessage(); }
 
         function appendMessageGroup(text, sender) {
             salvarMensagemNoHistorico(text, sender);
@@ -789,18 +885,8 @@
         function appendMessageGroupUI(text, sender) {
             const groupDiv = document.createElement('div');
             groupDiv.className = `message-group ${sender}`;
-            
-            let formattedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            formattedText = formattedText.replace(/\n/g, '<br>');
-            
-            const messageHtml = `<div class="message ${sender}">${formattedText}</div>`;
-            
-            if (sender === 'ia') {
-                groupDiv.innerHTML = `<img src="E179298F-8DDC-4731-BCEA-29993AC66FDD.png" class="avatar-ia" alt="B2 Vision">` + messageHtml;
-            } else {
-                groupDiv.innerHTML = messageHtml;
-            }
-            
+            let formattedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+            groupDiv.innerHTML = sender === 'ia' ? `<img src="E179298F-8DDC-4731-BCEA-29993AC66FDD.png" class="avatar-ia">` + `<div class="message ia">${formattedText}</div>` : `<div class="message user">${formattedText}</div>`;
             chatMessages.appendChild(groupDiv);
             scrollToBottom();
         }
@@ -810,14 +896,7 @@
             const groupDiv = document.createElement('div');
             groupDiv.className = 'message-group ia';
             groupDiv.id = id;
-
-            groupDiv.innerHTML = `
-                <img src="E179298F-8DDC-4731-BCEA-29993AC66FDD.png" class="avatar-ia" alt="B2 Vision">
-                <div class="message ia">
-                    <div class="typing-indicator"><span></span><span></span><span></span></div>
-                </div>
-            `;
-            
+            groupDiv.innerHTML = `<img src="E179298F-8DDC-4731-BCEA-29993AC66FDD.png" class="avatar-ia"><div class="message ia"><div class="typing-indicator"><span></span><span></span><span></span></div></div>`;
             chatMessages.appendChild(groupDiv);
             scrollToBottom();
             return id;
